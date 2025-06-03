@@ -1,15 +1,12 @@
 package com.example.nubo.view.fragments
 
-import androidx.fragment.app.Fragment
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
-import com.example.nubo.R
 import android.view.ViewGroup
-import android.widget.Button
+import androidx.fragment.app.Fragment
 import com.example.nubo.Interfaces.FragmentChange
 import com.example.nubo.databinding.FragmentMainBinding
-import com.example.nubo.Interfaces.PageName
 
 class MainFragment : Fragment() {
     private var _binding: FragmentMainBinding? = null
@@ -34,7 +31,10 @@ class MainFragment : Fragment() {
         }
 
         companion object {
-            fun newInstance(param: Int, Fragmentch: FragmentChange): com.example.nubo.view.fragments.MainFragment {
+            fun newInstance(
+                param: Int,
+                Fragmentch: FragmentChange
+            ): MainFragment {
                 val fragment = MainFragment()
                 val args = Bundle()
                 args.putInt("param", param)
@@ -43,6 +43,5 @@ class MainFragment : Fragment() {
                 return fragment
             }
         }
-
-
     }
+}
