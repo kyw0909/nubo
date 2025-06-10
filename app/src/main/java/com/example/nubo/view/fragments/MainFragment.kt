@@ -1,4 +1,4 @@
-// app/src/main/java/com/example/nubo/view/fragments/MainFragment.kt
+// kyw0909/nubo/nubo-700f81f17325a8c78b9f20770f5aae2c7965c919/app/src/main/java/com/example/nubo/view/fragments/MainFragment.kt
 package com.example.nubo.view.fragments
 
 import android.os.Bundle
@@ -7,61 +7,36 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
-import androidx.viewpager2.adapter.FragmentStateAdapter
-import com.example.nubo.Interfaces.FragmentChange
-import com.example.nubo.Interfaces.PageName
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.nubo.R
 import com.example.nubo.data.NewsArticle
 import com.example.nubo.databinding.FragmentMainBinding
 import com.example.nubo.presenter.main.MainContract
 import com.example.nubo.presenter.main.MainPresenter
 import com.example.nubo.presenter.main.NewsRepository
-import com.google.android.material.tabs.TabLayoutMediator
+import com.example.nubo.view.recycleview.NewsAdapter
+import com.google.android.material.tabs.TabLayout
 
 class MainFragment : Fragment(), MainContract.View {
+
     private var _binding: FragmentMainBinding? = null
     private val binding get() = _binding!!
 
-    // Activity에서 프래그먼트 전환을 처리한다고 가정
-    lateinit var fragmentChange: FragmentChange
-    // Presenter 인스턴스
-    lateinit var presenter: MainContract.Presenter // lateinit으로 선언
+    private lateinit var presenter: MainContract.Presenter
+    private lateinit var newsAdapter: NewsAdapter
+    // private var fragmentChangeListener: FragmentChange? = null // MainActivity가 구현
 
-    // ViewPager2 어댑터
-    private inner class NewsPagerAdapter(fragment: Fragment, private val categories: List<String>) : FragmentStateAdapter(fragment) {
-        private val fragments = mutableMapOf<String, NewsListFragment>()
-
-        override fun getItemCount(): Int = categories.size
-
-        override fun createFragment(position: Int): Fragment {
-            val category = categories[position]
-            // 이미 생성된 프래그먼트가 있다면 재사용
-            return fragments[category] ?: NewsListFragment.newInstance(category).also {
-                fragments[category] = it
-            }
-        }
-
-        fun getFragment(category: String): NewsListFragment? {
-            return fragments[category]
-        }
-    }
-
-    private lateinit var newsPagerAdapter: NewsPagerAdapter
-    private val categories = listOf("전체", "정치", "스포츠", "경제", "국제", "사회", "IT 과학")
-
-    // newInstance 메서드를 통해 FragmentChange 인터페이스를 주입받도록 함
-    companion object {
-        fun newInstance(Fragmentch: FragmentChange): MainFragment {
-            val fragment = MainFragment()
-            fragment.fragmentChange = Fragmentch
-            return fragment
-        }
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        // Presenter 초기화 (Model 주입)
-        presenter = MainPresenter(NewsRepository())
-    }
+    // companion object에서 newInstance 제거하고 일반 생성 또는 MainActivity에서 주입
+    // MainActivity 로부터 FragmentChange 인터페이스를 받기 위한 코드
+    // override fun onAttach(context: Context) {
+    //     super.onAttach(context)
+    //     if (context is FragmentChange) {
+    //         fragmentChangeListener = context
+    //     } else {
+    //         // throw RuntimeException("$context must implement FragmentChange")
+    //         // MainActivity가 FragmentChange를 구현하므로 이 부분은 현재 MainActivity 구조에서는 필요 없을 수 있음
+    //     }
+    // }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -73,95 +48,123 @@ class MainFragment : Fragment(), MainContract.View {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        presenter.attachView(this) // Presenter에 View 연결
 
-        // 검색 버튼 클릭 리스너
+        // Model(Repository) 인스턴스 생성
+        val newsRepository = NewsRepository()
+        // Presenter 인스턴스 생성 및 View 연결
+        presenter = MainPresenter(newsRepository) // MainPresenter의 생성자에서 abstract 제거 필요
+        presenter.attachView(this)
+
+        setupRecyclerView()
+        setupListeners()
+
+        // 초기 데이터 로드 (Presenter의 attachView에서 처리)
+        // presenter.loadNews("전체") // Presenter의 attachView에서 초기 카테고리 로드하도록 변경
+    }
+
+    private fun setupRecyclerView() {
+        newsAdapter = NewsAdapter { article ->
+            presenter.onNewsArticleClicked(article)
+        }
+        binding.rvNewsList.apply {
+            layoutManager = LinearLayoutManager(context)
+            adapter = newsAdapter
+        }
+    }
+
+    private fun setupListeners() {
+        binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab?) {
+                tab?.let {
+                    presenter.onCategorySelected(it.text.toString())
+                }
+            }
+            override fun onTabUnselected(tab: TabLayout.Tab?) {}
+            override fun onTabReselected(tab: TabLayout.Tab?) {
+                // 필요시 재선택 로직 구현 (예: 목록 맨 위로 스크롤)
+                tab?.let {
+                    presenter.onCategorySelected(it.text.toString()) // 또는 loadNews 재호출
+                }
+            }
+        })
+
         binding.btnSearch.setOnClickListener {
             presenter.onSearchButtonClicked()
         }
 
-        // 요약하기 FloatingActionButton 클릭 리스너
         binding.fabSummarize.setOnClickListener {
-            presenter.onSummarizeButtonClicked()
+            // 현재 선택된 기사가 있다면 해당 기사를, 없다면 목록의 첫번째 기사를 전달
+            // 이 로직은 Presenter가 담당하는 것이 더 적절할 수 있음
+            // 여기서는 간단히 Presenter에게 "요약 버튼 눌림"만 알리고,
+            // Presenter가 현재 상태(예: 마지막으로 클릭된 기사, 또는 현재 카테고리의 첫 기사)를 기반으로 동작
+            val currentVisibleArticle: NewsArticle? = null // TODO: 현재 화면에 보이는 주요 기사 식별 로직 (선택적)
+            presenter.onSummarizeFabClicked(currentVisibleArticle)
         }
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        presenter.detachView() // Presenter에서 View 연결 해제
-        _binding = null
-    }
-
-    override fun goToSearchScreen() {
-        TODO("Not yet implemented")
-    }
-
-    override fun goToSummarizeScreen() {
-        TODO("Not yet implemented")
-    }
-
-    override fun showToast(msg: String) {
-        TODO("Not yet implemented")
-    }
-
-    // --- MainContract.View 인터페이스 구현 ---
-
-    override fun showNewsArticles(articles: List<NewsArticle>) {
-        // 이 메서드는 NewsListFragment에서 직접 데이터를 표시할 것이므로, 여기서는 사용하지 않습니다.
-        // 각 NewsListFragment에 데이터가 전달될 때 showCategoryNews를 사용합니다.
-    }
-
-    override fun showCategoryNews(category: String, articles: List<NewsArticle>) {
-        // 현재 ViewPager2에 표시된 또는 해당 카테고리의 NewsListFragment에 데이터를 전달
-        val currentFragment = newsPagerAdapter.getFragment(category)
-        currentFragment?.updateNews(articles)
-    }
-
+    // --- MainContract.View 구현 ---
     override fun showLoadingIndicator() {
-        // 로딩 스피너 등을 표시하는 로직
-        // 예: binding.progressBar.visibility = View.VISIBLE (progressBar를 XML에 추가해야 함)
-        // binding.progressBar?.visibility = View.VISIBLE // null-safe 호출
-        // 또는, 각 NewsListFragment 내부에 로딩 인디케이터를 둘 수도 있습니다.
+        binding.progressBar.visibility = View.VISIBLE
+        binding.tvErrorMessage.visibility = View.GONE
+        binding.rvNewsList.visibility = View.GONE
     }
 
     override fun hideLoadingIndicator() {
-        // 로딩 스피너 등을 숨기는 로직
-        // 예: binding.progressBar.visibility = View.GONE
-        // binding.progressBar?.visibility = View.GONE
+        binding.progressBar.visibility = View.GONE
+    }
+
+    override fun showNewsArticles(articles: List<NewsArticle>) {
+        binding.rvNewsList.visibility = View.VISIBLE
+        binding.tvErrorMessage.visibility = View.GONE
+        newsAdapter.submitList(articles)
     }
 
     override fun showErrorMessage(message: String) {
-        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        binding.rvNewsList.visibility = View.GONE // 목록 숨기기
+        binding.tvErrorMessage.visibility = View.VISIBLE
+        binding.tvErrorMessage.text = message
+        // Toast.makeText(context, message, Toast.LENGTH_LONG).show() // 또는 토스트로도 표시
     }
 
-    override fun navigateToSummaryFragment(newsContent: String) {
-        // FragmentChange 인터페이스를 사용하여 SummaryFragment로 전환
-        if (::fragmentChange.isInitialized) {
-            // PageName enum에 SUMMARY_SCREEN이 있는지 확인 필요
-            fragmentChange.setFrag(PageName.SUMMARY_SCREEN.ordinal, newsContent)
-        } else {
-            Toast.makeText(context, "FragmentChange 인터페이스가 초기화되지 않았습니다.", Toast.LENGTH_SHORT).show()
+    override fun navigateToSummaryScreen(article: NewsArticle) {
+        // MainActivity를 통해 SummaryFragment로 전환
+        // (activity as? FragmentChange)?.setFrag(PageName.SUMMARY.ordinal, article) // SUMMARY PageName 추가 필요
+        // 또는 FragmentManager 직접 사용
+        val summaryFragment = SummaryFragment.newInstance(article) // SummaryFragment에 article 전달하는 newInstance 필요
+
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragmentFrame, summaryFragment) // MainActivity의 FrameLayout ID
+            .addToBackStack(null) // 뒤로가기 스택에 추가
+            .commit()
+    }
+
+
+    override fun setupTabs(categories: List<String>) {
+        binding.tabLayout.removeAllTabs() // 기존 탭 제거
+        categories.forEach { categoryName ->
+            binding.tabLayout.addTab(binding.tabLayout.newTab().setText(categoryName))
         }
     }
 
-    override fun setupTabLayoutWithViewPager(categories: List<String>) {
-        newsPagerAdapter = NewsPagerAdapter(this, categories)
-        binding.viewPager.adapter = newsPagerAdapter // viewPager는 fragment_main.xml에 추가해야 함
+    override fun showToast(msg: String) {
+        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+    }
 
-        // TabLayout과 ViewPager2 연결
-        TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->
-            tab.text = categories[position]
-        }.attach()
+    override fun goToSearchScreen() {
+        // TODO: 검색 화면으로 이동하는 로직 (새로운 Fragment 또는 Activity)
+        showToast("검색 화면으로 이동 (미구현)")
+    }
 
-        // 탭 선택 리스너 (Presenter에 탭 선택 이벤트 전달)
-        binding.tabLayout.addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
-                tab?.text?.toString()?.let { category ->
-                    presenter.onTabSelected(category)
-                }
-            }
-            override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
-            override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
-        })
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        presenter.detachView() // Presenter와 View 연결 해제
+        _binding = null
+    }
+
+    companion object {
+        fun newInstance(): MainFragment { // param, Fragmentch 제거
+            return MainFragment()
+        }
     }
 }

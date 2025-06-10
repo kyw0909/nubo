@@ -1,4 +1,19 @@
 <resources>
-    <string name="app_name">nubo</string>
-    <string name="search_button_description" />
+    <string name="app_name">NuBo</string> <string name="search_button_description">Search News</string>
+    <string name="action_summarize">요약하기</string>
+    <string name="label_all">전체</string>
+    <string name="label_politics">정치</string>
+    <string name="label_sports">스포츠</string>
+    <string name="label_economy">경제</string>
+    <string name="label_international">국제</string>
+    <string name="label_society">사회</string>
+    <string name="label_it_science">IT 과학</string>
+    <string name="news_thumbnail">News Thumbnail</string>
+    <string name="summary_title_default">뉴스 요약</string>
+    <string name="view_original_article">원본 기사 보기</string>
+    <string name="loading_summary_message">뉴스를 요약 중 입니다.</string> <string name="error_loading_news">뉴스 로딩 실패</string>
+    <string name="no_news_in_category">해당 카테고리에 뉴스가 없습니다.</string>
+    <string name="no_news_available">뉴스를 불러올 수 없습니다.</string>
+    <string name="back_button_description">뒤로가기</string>
+
 </resources>

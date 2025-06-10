@@ -1,65 +1,78 @@
+// kyw0909/nubo/nubo-700f81f17325a8c78b9f20770f5aae2c7965c919/app/src/main/java/com/example/nubo/presenter/main/MainPresenter.kt
 package com.example.nubo.presenter.main
 
 import com.example.nubo.data.NewsArticle
 
-abstract class MainPresenter(private val model: MainContract.Model) : MainContract.Presenter, MainContract.Model.OnNewsLoadListener {
+// MainPresenter는 MainContract.Presenter를 구현해야 합니다.
+// 생성자에서 Model을 주입받는 것은 좋은 패턴입니다.
+// abstract class 제거하고 일반 클래스로 변경 (필요시 유지)
+class MainPresenter(private val model: MainContract.Model) : MainContract.Presenter {
 
     private var view: MainContract.View? = null
-    // 탭 레이아웃에 표시할 카테고리 목록
-    private val categories = listOf("전체", "정치", "스포츠", "경제", "국제", "사회", "IT 과학")
-    private var currentCategory: String = "전체" // 현재 선택된 카테고리
+    private val categories = listOf("전체", "정치", "스포츠", "경제", "국제", "사회", "IT 과학") // 기존 유지
+    private var currentCategory: String = categories.first() // 초기값 "전체"
+    private var currentArticles: List<NewsArticle> = emptyList()
+
 
     override fun attachView(view: MainContract.View) {
         this.view = view
-        view.setupTabLayoutWithViewPager(categories) // View에 탭 레이아웃 설정을 지시
-        loadNewsArticlesForCategory(currentCategory) // 초기 로드: "전체" 뉴스 로드
+        this.view?.setupTabs(categories)
+        loadNews(currentCategory) // 초기 "전체" 뉴스 로드
     }
 
     override fun detachView() {
         this.view = null
     }
 
-    override fun loadNewsArticlesForCategory(category: String) {
-        view?.showLoadingIndicator() // View에 로딩 인디케이터 표시 요청
+    override fun loadNews(category: String) {
+        view?.showLoadingIndicator()
         currentCategory = category
-        model.getNewsArticles(category, this) // Model에 특정 카테고리 뉴스 요청
+        // Model에게 특정 카테고리 뉴스 요청 (콜백은 Presenter가 직접 처리하도록 변경)
+        model.getNewsArticles(category, object : MainContract.Model.OnNewsLoadListener {
+            override fun onSuccess(articles: List<NewsArticle>) {
+                currentArticles = articles // 현재 기사 목록 업데이트
+                view?.hideLoadingIndicator()
+                if (articles.isEmpty() && category != "전체") {
+                    view?.showErrorMessage("$category 카테고리에 뉴스가 없습니다.")
+                } else if (articles.isEmpty()) {
+                    view?.showErrorMessage("뉴스를 불러올 수 없습니다.")
+                }
+                view?.showNewsArticles(articles)
+            }
+
+            override fun onFailure(errorMessage: String) {
+                view?.hideLoadingIndicator()
+                view?.showErrorMessage(errorMessage)
+                currentArticles = emptyList() // 실패 시 목록 비우기
+                view?.showNewsArticles(emptyList()) // 빈 목록 보여주기
+            }
+        })
     }
 
-    // 탭 선택 시 호출될 Presenter 메서드 (ViewPager2와 연동될 때 주로 사용)
-    override fun onTabSelected(category: String) {
-        loadNewsArticlesForCategory(category) // 선택된 탭의 뉴스 로드
+    override fun onCategorySelected(category: String) {
+        if (this.currentCategory != category) {
+            loadNews(category)
+        }
     }
 
-    // 뉴스 아이템 클릭 시 호출될 Presenter 메서드
-    override fun onNewsItemClicked(article: NewsArticle) {
-        // TODO: 뉴스 아이템 클릭 시 상세 화면 (웹뷰)으로 이동하는 로직 구현
-        // View에서 FragmentChange 인터페이스를 통해 이동을 처리할 수 있습니다.
-        view?.showErrorMessage("뉴스 링크: ${article.link} (클릭 로직 미구현)") // 임시 메시지
+    override fun onNewsArticleClicked(article: NewsArticle) {
+        // View에게 요약 화면으로 이동하라고 알림
+        view?.navigateToSummaryScreen(article)
     }
 
-    // '요약하기' 버튼 클릭 시 호출될 Presenter 메서드
-    override fun onSummarizeButtonClicked() {
-        // TODO: 현재 보이는 탭의 첫 번째 뉴스나 선택된 뉴스 기사 내용을 요약 화면으로 전달
-        // 여기서는 예시로 샘플 텍스트를 전달합니다.
-        val sampleNewsContent = "최신 인공지능 기술이 빠르게 발전하며 일상생활에 큰 변화를 가져오고 있습니다. 특히, 자연어 처리 분야에서는 LLM(Large Language Model)이 등장하여 텍스트 생성, 번역, 요약 등 다양한 작업을 수행할 수 있게 되었습니다. 이는 교육, 의료, 금융 등 여러 산업 분야에 혁신적인 영향을 미치고 있으며, 미래 사회의 모습을 재정의할 것으로 기대됩니다. 하지만 기술의 발전과 함께 윤리적 문제와 사회적 영향에 대한 논의도 활발하게 이루어지고 있습니다."
-        view?.navigateToSummaryFragment(sampleNewsContent)
+    override fun onSummarizeFabClicked(currentArticle: NewsArticle?) {
+        // 현재 보고 있는 주요 기사가 있다면 해당 기사를 요약 화면으로 전달
+        // 없다면, 현재 카테고리의 첫 번째 기사를 전달하거나, 사용자에게 선택을 유도할 수 있음
+        val articleToSummarize = currentArticle ?: currentArticles.firstOrNull()
+        if (articleToSummarize != null) {
+            view?.navigateToSummaryScreen(articleToSummarize)
+        } else {
+            view?.showToast("요약할 뉴스가 없습니다.")
+        }
     }
 
-    // 검색 버튼 클릭 시 호출될 Presenter 메서드
     override fun onSearchButtonClicked() {
-        // TODO: 검색 화면으로 이동하는 로직 구현
-        view?.showErrorMessage("검색 기능은 아직 구현되지 않았습니다.")
-    }
-
-    // Model로부터 데이터 로드 성공 콜백
-    override fun onSuccess(articles: List<NewsArticle>) {
-        view?.hideLoadingIndicator() // View에 로딩 인디케이터 숨김 요청
-        view?.showCategoryNews(currentCategory, articles) // View에 해당 카테고리 뉴스 표시 요청
-    }
-
-    // Model로부터 데이터 로드 실패 콜백
-    override fun onFailure(errorMessage: String) {
-        view?.hideLoadingIndicator() // View에 로딩 인디케이터 숨김 요청
-        view?.showErrorMessage(errorMessage) // View에 오류 메시지 표시 요청
+        view?.goToSearchScreen() // View에 검색 화면 이동 요청 (미구현 상태)
+        view?.showToast("검색 기능은 아직 준비중입니다.") // 임시 메시지
     }
 }
