@@ -5,4 +5,5 @@ interface FragmentChange {
 }
 enum class PageName {
     MAIN,
+    SUMMARY_SCREEN
 }
